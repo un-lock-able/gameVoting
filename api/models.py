@@ -56,6 +56,7 @@ class Vote(models.Model):
     voting_user = models.ForeignKey(Participant, on_delete=models.CASCADE)
     voting_character = models.ForeignKey(GameCharacter, on_delete=models.CASCADE)
     create_time = models.DateTimeField(auto_now_add=True)
+    last_update_time = models.DateTimeField("Last updated", auto_now=True)
     score = models.IntegerField(default=0)
 
     class Meta:

@@ -2,15 +2,15 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 from .models import Game, GameCharacter, InviteCode, Participant, Vote
-from django.core import serializers
 from django.db import IntegrityError
 
 # Create your views here.
 def list_games(request):
-    full_game_list = serializers.serialize("json", Game.objects.order_by("last_update_time").all(), fields=["game_name", "last_update_time"])
+    # full_game_list = serializers.serialize("json", Game.objects.order_by("last_update_time").all(), fields=["game_name", "last_update_time"])
+    full_game_list = Game.objects.order_by("-last_update_time").values("id", "game_name", "last_update_time")
     return JsonResponse({
         "success": True,
-        "games": full_game_list
+        "games": list(full_game_list)
     })
 
 def list_characters(request, game_id):
@@ -21,11 +21,13 @@ def list_characters(request, game_id):
             "success": False,
             "message": "Game does not exist"
         })
+
+    character_list = target_game.gamecharacter_set.values("id", "name", "sex")
     
     return JsonResponse({
         "success": True,
         "game_name": target_game.game_name,
-        "characters": serializers.serialize("json", target_game.gamecharacter_set.all(), fields=["name", "sex"])
+        "characters": list(character_list)
     })
 
 
@@ -91,7 +93,7 @@ def record_votes(request, game_id):
         except Participant.DoesNotExist:
             return JsonResponse({
                 "success": False,
-                "message": "The nickname does not match"
+                "message": "The invite code has already been used"
             })
     else:
         try:
@@ -110,19 +112,46 @@ def record_votes(request, game_id):
         except GameCharacter.DoesNotExist:
             continue
 
-        try:
-            record = Vote.objects.get(voting_user=participant, voting_character=target_character)
-        except Vote.DoesNotExist:
-            record = Vote.objects.create(voting_user=participant, voting_character=target_character, score=vote["score"])
-        else:
-            record.score = vote["score"]
-        finally:
-            record.save()
+        # try:
+        #     record = Vote.objects.get(voting_user=participant, voting_character=target_character)
+        # except Vote.DoesNotExist:
+        #     record = Vote.objects.create(voting_user=participant, voting_character=target_character, score=vote["score"])
+        # else:
+        #     record.score = vote["score"]
+        # finally:
+        #     record.save()
+        _, created = Vote.objects.update_or_create(voting_user=participant, voting_character=target_character, defaults= {"score": vote["score"]})
 
     return JsonResponse({
-        "success": True
+        "success": True,
+        "creat_new": created
     })
     # return HttpResponse(request.POST)
 
 def vote_results(request, game_id):
-    return JsonResponse({"success": True})
+    try:
+        query_game = Game.objects.get(pk=game_id)
+    except Game.DoesNotExist:
+        return JsonResponse({
+            "success": False,
+            "message": "Game does not exist"
+        })
+    
+    vote_result_by_user = list()
+    voted_participants_pk = Vote.objects.filter(voting_character__game=query_game).values_list("voting_user", flat=True).distinct()
+    for participant_pk in voted_participants_pk:
+        score_list = dict()
+        single_participant_votes = Vote.objects.filter(voting_character__game=query_game, voting_user=participant_pk).all()
+        for single_vote in single_participant_votes:
+            score_list[single_vote.voting_character.name] = single_vote.score
+
+        vote_result_by_user.append({
+            "participant_name": Participant.objects.get(pk=participant_pk).name,
+            "scores": score_list
+        })
+        print(vote_result_by_user)
+
+    return JsonResponse({
+        "success": True,
+        "vote_result": vote_result_by_user
+    })

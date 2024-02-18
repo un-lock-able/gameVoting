@@ -10,14 +10,14 @@ class GameCharacterInline(admin.TabularInline):
 class GameAdmin(admin.ModelAdmin):
     fieldsets = [
         (None, {"fields": ["game_name"]}),
-        (
-            "Dates",
-            {
-                "fields": [
-                    "create_time", "last_update_time"
-                ]
-            }
-        )
+        # (
+        #     "Dates",
+        #     {
+        #         "fields": [
+        #             "create_time", "last_update_time"
+        #         ]
+        #     }
+        # )
     ]
     inlines = [GameCharacterInline]
     readonly_fields = ["create_time", "last_update_time"]
@@ -28,7 +28,7 @@ class InviteCodeAdmin(admin.ModelAdmin):
     list_display = ["code", "used"]
 
 class VoteAdmin(admin.ModelAdmin):
-    list_display = ["voting_user", "voting_character", "score", "create_time"]
+    list_display = ["voting_user", "voting_character", "score", "create_time", "last_update_time"]
 
 
 # Register your models here.
