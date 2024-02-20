@@ -40,17 +40,7 @@ def record_votes(request, game_id):
             "message": "Incorrect http method"
         }) 
     # Now it must be a POST message
-
-    # Check whether the game id exists
-    try:
-        target_game = Game.objects.get(pk=game_id)
-    except Game.DoesNotExist:
-        return JsonResponse({
-            "success": False,
-            "message": "Game does not exist"
-        })
-    # Now the game must exist
-
+    # print(request.body)
     # Try to decode the json
     try:
         post_data = json.loads(request.body)
@@ -60,19 +50,14 @@ def record_votes(request, game_id):
             "message": "Corrupted json content"
         })
     # Decode success
+
     # post_data = {
     #     "invite_code": "XXXXXX",
     #     "nickname": "Some Name",
-    #     "votes": [
-    #         {
-    #             "character_id": 2,
-    #             "score": 9
-    #         },
-    #         {
-    #             "character_id": 3,
-    #             "score": 10
-    #         }    
-    #     ]
+    #     "votes": {
+    #         "2": 9,
+    #         "3": 10,
+    #     }
     # }
 
     # Validate the invite code
@@ -84,13 +69,29 @@ def record_votes(request, game_id):
             "message": "Invalid invite code"
         })
     # The code exists
+
+    # Check whether the game id exists
+    try:
+        target_game = Game.objects.get(pk=game_id)
+    except Game.DoesNotExist:
+        return JsonResponse({
+            "success": False,
+            "message": "Game does not exist"
+        })
+    # Now the game must exist
     
     # If the code is used, then we see if it is the voter trying to change the record;
     # if it is not used, we assume it is a new user trying to register
     if invite_code_object.used:
+        print("It is used")
         try:
             participant = Participant.objects.get(name=post_data["nickname"])
         except Participant.DoesNotExist:
+            return JsonResponse({
+                "success": False,
+                "message": "The invite code has already been used"
+            })
+        if participant.register_code != invite_code_object:
             return JsonResponse({
                 "success": False,
                 "message": "The invite code has already been used"
@@ -106,21 +107,17 @@ def record_votes(request, game_id):
         invite_code_object.used = True
         invite_code_object.save()
     
-    for vote in post_data["votes"]:
+    created = False
+    
+    for char_id, char_score in post_data["votes"].items():
         try:
-            target_character = GameCharacter.objects.get(pk=vote["character_id"])
+            target_character = GameCharacter.objects.get(pk=char_id)
         except GameCharacter.DoesNotExist:
             continue
 
-        # try:
-        #     record = Vote.objects.get(voting_user=participant, voting_character=target_character)
-        # except Vote.DoesNotExist:
-        #     record = Vote.objects.create(voting_user=participant, voting_character=target_character, score=vote["score"])
-        # else:
-        #     record.score = vote["score"]
-        # finally:
-        #     record.save()
-        _, created = Vote.objects.update_or_create(voting_user=participant, voting_character=target_character, defaults= {"score": vote["score"]})
+        if char_score <= 0 or char_score > 10:
+            continue
+        _, created = Vote.objects.update_or_create(voting_user=participant, voting_character=target_character, defaults= {"score": char_score})
 
     return JsonResponse({
         "success": True,
@@ -149,7 +146,6 @@ def vote_results(request, game_id):
             "participant_name": Participant.objects.get(pk=participant_pk).name,
             "scores": score_list
         })
-        print(vote_result_by_user)
 
     return JsonResponse({
         "success": True,
